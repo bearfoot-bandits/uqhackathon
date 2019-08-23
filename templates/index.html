@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+<head>
+  <title>Title</title>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <meta name='keywords' content='key, words'>
+  <meta name='description' content='Description.'>
+  <link rel='icon' type='image/x-icon' href='data:image/x-icon;base64,'>
+  <style>
+html, body { height: 100% }
+body { margin: 0 }
+video {
+  width: 100%;
+  height: 100% }
+button {
+  width: 10vh;
+  height: 10vh;
+  border-radius: 5vh;
+  font-size: 6vh;
+  border: 0;
+  position: absolute;
+  bottom: 5vh;
+  left: 50%;
+  transform: translateX(-50%)}
+button[data-state=off] { background: red }
+button[data-state=off]::before { content: '📷' }
+button[data-state=on] { background: forestgreen }
+button[data-state=on]::before { content: '📸' }
+  </style>
+</head>
+<body>
+  <video></video>
+  <button data-state='off'></button>
+  <script>
+// Utilities
+var $ = (wm => { let v = Object.values, r = Promise.resolve.bind(Promise),
+    test = (obj, con) => obj.constructor === con || con.prototype.isPrototypeOf(obj),
+    add = (k, t, fn, es = wm.get(k) || {}) => { remove(k, t, fn.name); k.addEventListener(t, (es[t] = es[t] || {})[fn.name] = fn); wm.set(k, es) },
+    remove = (k, t, fname, es = wm.get(k)) => { if (es && t in es && fname in es[t]) {
+      k.removeEventListener(t, es[t][fname]); delete es[t][fname] && (v(es[t]).length || delete es[t]) && (v(es).length || wm.delete(k)) } };
+
+//   $ enhances querySelectorAll
+  return Object.assign((sel, node = document) => v(node.querySelectorAll(sel)), {
+
+//   $.Machine creates state machines for the page
+    Machine: function (state) { let es = {}; Object.seal(state);
+      return Object.assign(this, {
+        state () { return state },
+        on (t, fn) { (es[t] = es[t] || {})[fn.name] = fn; return this },
+        stop (t, fname = '') { t in es && delete es[t][fname] && (v(es[t]).length || delete es[t]); return this },
+        emit (t, ...args) { return t in es && v(es[t]).reduce((s, fn) => (fn.apply(s, args), s), state) },
+        emitAsync (t, ...args) { return t in es && v(es[t]).reduce((p, fn) => p.then(s => r(fn.apply(s, args)).then(() => s)), r(state)) } }) },
+
+//   $.pipe manages async event chronology
+    pipe: (ps => (p, ...ands) => ps[p] = (ps[p] || r()).then(() => Promise.all(ands.map(ors =>
+      (test(ors, Array) && Promise.race(ors.map(fn => fn()))) || (test(ors, Function) && ors())))))({}),
+
+//   $.targets recursively adds event listeners to objects and removes them by name, indexed by regex
+    targets (obj, target = window) {
+      for (let ts in obj) if (test(obj[ts], Function)) { if (test(target, $.Machine)) ts.split(' ').forEach(t => target.on(t, obj[ts]));
+        else if (test(target, EventTarget)) ts.split(' ').forEach(t => add(target, t, obj[ts].bind(target))) }
+      else if (test(obj[ts], String)) { if (test(target, $.Machine)) ts.split(' ').forEach(t => target.stop(t, obj[ts]));
+        else if (test(target, EventTarget)) ts.split(' ').forEach(t => remove(target, t, 'bound ' + obj[ts])) }
+      else if (ts in target) $.targets(obj[ts], target[ts]);
+      else for (let k in target) if (k.match(new RegExp(`^${ts}$`))) $.targets(obj[ts], target[k]) },
+
+//   $.queries adds event listeners to DOM nodes and removes them by name, indexed by selector
+    queries (obj, root) {
+      for (let q in obj) { let ns = $(q, root); if (ns.length) for (let ts in obj[q])
+        if (test(obj[q][ts], Function)) ts.split(' ').forEach(t => ns.forEach(n => add(n, t, obj[q][ts].bind(n))));
+        else if (test(obj[q][ts], String)) ts.split(' ').forEach(t => ns.forEach(n => remove(n, t, 'bound ' + obj[q][ts]))) } },
+
+//   $.load enhances importNode
+    load (id, dest = 'body', root) {
+      let stamp = document.importNode($('template#' + id)[0].content, true);
+      return $(dest, root).map(n => v(stamp.cloneNode(true).childNodes).map(c => n.appendChild(c))) } }) })(new WeakMap());
+
+
+// Page state
+var app = new $.Machine({
+  video: $('video')[0],
+  canvas: null,
+  context: null,
+  iv: 0,
+  heartbeat: false,
+  ws: new WebSocket('wss://' + location.host + '/ws')
+});
+
+// Events
+$.targets({
+  load () {
+    app.emit('init');
+    //$.pipe('heartbeat', () => app.emitAsync('startCamera'))
+  },
+  resize () { app.emit('resize') },
+  app: {
+    init () {
+      let canvas = this.canvas = document.createElement('canvas');
+      this.context = canvas.getContext('2d');
+      app.emit('resize')
+    },
+    resize () {
+      this.canvas.width = document.body.clientWidth;
+      this.canvas.height = document.body.clientHeight;
+    },
+    startCamera () {
+      if (navigator.mediaDevices.getUserMedia) {
+        return navigator.mediaDevices.getUserMedia({
+          video: { width: 6400, height: 4800, facingMode: { exact: 'environment' } }
+        }).then(s => {
+          this.video.srcObject = s;
+          this.video.onloadedmetadata = () => this.video.play();
+        }).catch(e => { throw e.message })
+      } else throw 'Can\'t connect camera'
+    },
+    heartbeat (on) {
+      on ?
+        this.iv = setInterval(() => {
+          let { width, height } = this.canvas;
+          this.context.drawImage(this.video, 0, 0, width, height)
+          this.ws.send(this.context.getImageData(0, 0, width, height).data.buffer)
+        }, 2000) :
+        clearInterval(this.iv)
+    }
+  }
+});
+
+$.queries({
+  button: {
+    'touchdown mousedown' () {
+      $.pipe('heartbeat', () => {
+        switch (this.dataset.state) {
+          case 'off': this.dataset.state = 'on';
+          return app.emitAsync('heartbeat', true)
+          case 'on': this.dataset.state = 'off';
+          return app.emitAsync('heartbeat', false)
+        }
+      })
+    }
+  }
+})
+  </script>
+  <noscript><h6>Only viewable with JavaScript enabled.</h6></noscript>
+</body>
+</html>
