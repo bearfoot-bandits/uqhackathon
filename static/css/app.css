@@ -1,0 +1,29 @@
+html, body { height: 100% }
+body { margin: 0 }
+
+video {
+  width: 100%;
+  height: 100% }
+
+button {
+  width: 10vh;
+  height: 10vh;
+  border-radius: 5vh;
+  font-size: 6vh;
+  border: 0;
+  position: absolute;
+  bottom: 5vh;
+  left: 50%;
+  transform: translateX(-50%)}
+button[data-state=off] { background: red }
+button[data-state=off]::before { content: '📷' }
+button[data-state=on] { background: forestgreen }
+button[data-state=on]::before { content: '📸' }
+button[disabled] { opacity: .5 }
+
+.debug {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font: bold 2rem sans;
+  color: red }

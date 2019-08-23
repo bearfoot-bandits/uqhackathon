@@ -7,10 +7,10 @@ app.debug = True
 def index():
     return render_template('index.html')
 
-@app.route('/', methods=['POST'])
+@app.route('/reference', methods=['POST'])
 def trans():
     print(request.files)
-    
+
     imgbuf = request.files.get('imgbuf')
     timestamp = request.form['timestamp']
     geo = request.form['geo']
