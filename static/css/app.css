@@ -25,5 +25,5 @@ button[disabled] { opacity: .5 }
   position: absolute;
   top: 1rem;
   right: 1rem;
-  font: bold 2rem sans;
+  font: bold 1.2rem sans;
   color: red }

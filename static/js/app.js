@@ -12,7 +12,10 @@ $.targets({
 
   load () {
     app.emit('init');
-    $.pipe('heartbeat', () => app.emitAsync('startCamera'))
+    $.pipe('heartbeat',
+      () => app.emitAsync('startCamera')
+        .catch(e => $('.debug')[0].textContent = e.message)
+    )
   },
 
   resize () { app.emit('resize') },
@@ -37,8 +40,8 @@ $.targets({
         }).then(s => {
           this.video.srcObject = s;
           this.video.onloadedmetadata = () => this.video.play();
-        }).catch(e => { throw e.message })
-      } else throw 'Can\'t connect camera'
+        }).catch(e => { throw e })
+      } else throw new Error('Can\'t connect camera')
     },
 
     heartbeat (on) {
