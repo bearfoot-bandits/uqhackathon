@@ -1,26 +1,25 @@
-from flask import Flask, render_template
-from flask_sockets import Sockets
-from gevent import pywsgi
-from geventwebsocket.handler import WebSocketHandler
+from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 app.debug = True
 
-sockets = Sockets(app)
-
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
-@sockets.route('/ws')
-def trans(ws):
-    while not ws.closed:
-        gevent.sleep(0.1)
-        message = ws.receive()
-        if message:
-            dir(message)
+@app.route('/', methods=['POST'])
+def trans():
+    print(request.files)
+    
+    imgbuf = request.files.get('imgbuf')
+    timestamp = request.form['timestamp']
+    geo = request.form['geo']
+    orient = request.form['orient']
+
+    print(imgbuf)
+    return jsonify(ok='ok') # TODO: return {} if the data is incorrect or if there is an error
+
 
 
 if __name__ == '__main__':
-    pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler) \
-          .serve_forever()
+    app.run()

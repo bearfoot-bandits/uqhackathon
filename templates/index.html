@@ -10,9 +10,11 @@
   <style>
 html, body { height: 100% }
 body { margin: 0 }
+
 video {
   width: 100%;
   height: 100% }
+
 button {
   width: 10vh;
   height: 10vh;
@@ -27,11 +29,20 @@ button[data-state=off] { background: red }
 button[data-state=off]::before { content: '📷' }
 button[data-state=on] { background: forestgreen }
 button[data-state=on]::before { content: '📸' }
+button[disabled] { opacity: .5 }
+
+.debug {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font: bold 2rem sans;
+  color: red }
   </style>
 </head>
 <body>
   <video></video>
   <button data-state='off'></button>
+  <div class='debug'></div>
   <script>
 // Utilities
 var $ = (wm => { let v = Object.values, r = Promise.resolve.bind(Promise),
@@ -83,58 +94,89 @@ var app = new $.Machine({
   canvas: null,
   context: null,
   iv: 0,
-  heartbeat: false,
-  ws: new WebSocket('wss://' + location.host + '/ws')
+  heartbeat: false
 });
 
 // Events
 $.targets({
+
   load () {
     app.emit('init');
-    //$.pipe('heartbeat', () => app.emitAsync('startCamera'))
+    $.pipe('heartbeat', () => app.emitAsync('startCamera'))
   },
+
   resize () { app.emit('resize') },
+
   app: {
+
     init () {
       let canvas = this.canvas = document.createElement('canvas');
       this.context = canvas.getContext('2d');
       app.emit('resize')
     },
-    resize () {
+
+    resize () { // Change image resolution here
       this.canvas.width = document.body.clientWidth;
       this.canvas.height = document.body.clientHeight;
     },
+
     startCamera () {
       if (navigator.mediaDevices.getUserMedia) {
         return navigator.mediaDevices.getUserMedia({
-          video: { width: 6400, height: 4800, facingMode: { exact: 'environment' } }
+          video: { width: 4800, height: 6400, facingMode: { exact: 'environment' } }
         }).then(s => {
           this.video.srcObject = s;
           this.video.onloadedmetadata = () => this.video.play();
         }).catch(e => { throw e.message })
       } else throw 'Can\'t connect camera'
     },
+
     heartbeat (on) {
-      on ?
-        this.iv = setInterval(() => {
-          let { width, height } = this.canvas;
-          this.context.drawImage(this.video, 0, 0, width, height)
-          this.ws.send(this.context.getImageData(0, 0, width, height).data.buffer)
-        }, 2000) :
-        clearInterval(this.iv)
+      this.heartbeat = on ?
+        this.iv = setTimeout(() => $.pipe('heartbeat',
+          () => app.emitAsync('sendData'),
+          () => app.emitAsync('heartbeat', this.heartbeat)), 1000) :
+        clearTimeout(this.iv)
+    },
+
+    sendData () {
+      let { width, height } = this.canvas;
+      this.context.drawImage(this.video, 0, 0, width, height);
+      let { data } = this.context.getImageData(0, 0, width, height),
+          body = new FormData();
+      console.log(data)
+      body.append('timestamp', Date.now());
+      body.append('files', new Blob([data]), 'imgbuf'); //Uint8ClampedArray;
+      body.append('geo', null);
+      body.append('orient', null);
+      return fetch('/', {method: 'POST', body}) //credentials: 'include'
+        .then(res => res.text()).then(text => {
+          console.log(text);
+          let data = JSON.parse(text);
+          if ('ok' in data) {
+            $('.debug')[0].textContent = ''
+          } else {
+            console.log('oops');
+            $('.debug')[0].textContent = 'Could not post data'
+          }
+        })
+        .catch(e => console.log(e))
     }
+
   }
 });
 
 $.queries({
   button: {
     'touchdown mousedown' () {
+      this.disabled = true;
       $.pipe('heartbeat', () => {
+        this.disabled = false;
         switch (this.dataset.state) {
           case 'off': this.dataset.state = 'on';
           return app.emitAsync('heartbeat', true)
           case 'on': this.dataset.state = 'off';
-          return app.emitAsync('heartbeat', false)
+          return app.state().heartbeat = false
         }
       })
     }
