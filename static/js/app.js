@@ -43,14 +43,16 @@ $.targets({
       let photoCanvas = this.photoCanvas = document.createElement('canvas');
       this.photoContext = photoCanvas.getContext('2d');
       app.emit('resize');
+      for (let c of 'Where do you want to go today?')
+        $.pipe('title', () => new Promise(r => setTimeout(() => r($('#title')[0].textContent += c), 50)))
     },
 
     chooseDest () {
       let body = new FormData(),
-          latitude = this.map.center.lat(), longitude = this.map.center.lng();
-      this.destination = { latitude, longitude }
+          latitude = this.map.center.lat(), longitude = this.map.center.lng(),
+          destination = this.destination = { latitude, longitude };
       body.append('timestamp', Date.now());
-      body.append('geo', JSON.stringify(this.destination));
+      body.append('geo', JSON.stringify({ destination }));
       return fetch('/', {method: 'POST', body})
         .then(res => res.json()).then(data => {
           if ('ok' in data) return app.emitAsync('startCamera')
@@ -89,6 +91,7 @@ $.targets({
       app.emit('setMarker', latitude, longitude);
 
       $('section').forEach(el => el.classList.toggle('active'));
+
       this.geoIv = navigator.geolocation.watchPosition(
         pos => app.emit('updateGeo', pos),
         console.log,
@@ -102,14 +105,22 @@ $.targets({
         clearTimeout(this.iv)
     },
 
-    sendData () {},
+    sendData (latitude, longitude) {
+      let body = new FormData(), update = { latitude, longitude };
+      body.append('timestamp', Date.now());
+      body.append('geo', JSON.stringify({ update }));
+      return fetch('/', {method: 'POST', body})
+    },
 
 
     // Camera image
 
     resize () { // Change image resolution here
-      this.photoCanvas.width = document.body.clientWidth / 4;
-      this.photoCanvas.height = document.body.clientHeight / 4;
+      let { clientWidth, clientHeight } = document.body;
+      this.photoCanvas.width = clientWidth / 4;
+      this.photoCanvas.height = clientHeight / 4;
+      $('canvas')[0].width = $('video')[0].width = clientWidth;
+      $('canvas')[0].height = $('video')[0].height = clientHeight;
     },
 
 
@@ -120,7 +131,8 @@ $.targets({
       this.geo = { latitude, longitude };
       let gGeo = new google.maps.LatLng(...Object.values(this.geo));
       this.map.setCenter(gGeo)
-      app.emit('setZoom', latitude, longitude)
+      app.emit('setZoom', latitude, longitude);
+      app.emit('sendData', latitude, longitude)
     },
 
 
@@ -134,7 +146,7 @@ $.targets({
     startCamera () {
       if (navigator.mediaDevices.getUserMedia) {
         return navigator.mediaDevices.getUserMedia({
-          video: { width: 4800, height: 6400/*, facingMode: { exact: 'environment' }*/ }
+          video: { width: 4800, height: 6400, facingMode: { exact: 'environment' } }
         }).then(s => {
           this.video.srcObject = s;
           this.video.onloadedmetadata = () => this.video.play();
@@ -146,7 +158,11 @@ $.targets({
 });
 
 $.queries({
-  'section#destSelect': {
+  '#map': {
+    touchstart () { $.pipe('titleblur', () => new Promise(r => setTimeout(() => r($('#title')[0].classList.add('blur')), 500))) },
+    touchend () { $.pipe('titleblur', () => new Promise(r => setTimeout(() => r($('#title')[0].classList.remove('blur')), 500))) }
+  },
+  '#title': {
     click () {
       app.emit('chooseDest')
     }

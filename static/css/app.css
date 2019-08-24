@@ -2,6 +2,7 @@ html, body { height: 100% }
 body { margin: 0 }
 
 .hide { display: none }
+.blur { opacity: .2 }
 #debug {
   position: absolute;
   top: 1rem;
@@ -16,6 +17,17 @@ section {
   height: 100% }
 section.active { display: block }
 
+#title {
+  position: absolute;
+  display: inline;
+  top: 5vh;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  background: white;
+  font-size: calc(2vw + 2vh);
+  width: fit-content;
+  text-align: center }
 #map, #destMap { height: 100% }
 svg {
   position: absolute;
@@ -30,6 +42,12 @@ svg {
 video {
   width: 100%;
   height: 100% }
+canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0 }
 
 #displayToggle {
   font-size: 3vh;
@@ -38,4 +56,5 @@ video {
   bottom: 5vh;
   left: 50%;
   transform: translateX(-50%);
-  background: white }
+  background: white;
+  padding: .5vh 1.5vh }
