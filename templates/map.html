@@ -13,22 +13,82 @@
         margin: 0;
         padding: 0;
       }
+      #search{
+        z-index: 10;
+        position: absolute;
+        top: 5%;
+        left: 45%;
+      }
+      #search input{
+        padding: 10px;
+        border: 4px solid #32909cd9;
+        border-radius: 15px;
+        background: #eef0f1a1;
+      }
     </style>
   </head>
   <body>
+    <div id="search">
+      <input type="text" name="fname" id="user_destination" placeholder="Search your building">
+      <button type="button" onclick="search_dir()"> search</button> 
+    </div>
     <div id="map"></div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD7aozE7zUESGNqfAj64cwwlYQZN8g1aIk&callback=initMap"
+    async defer></script>    
     <script>
-      var map;
-      console.log("Initallized");
+      var map,directionsDisplay,directionsService;
+      var user_position, direction_coor;
       var center = {lat: -27.497561, lng: 153.013302};
+      key = "AIzaSyD7aozE7zUESGNqfAj64cwwlYQZN8g1aIk";
       // Drawing de location
+      console.log("Initallized");
+      // function search_dir(){
+      //   var destination_name = "UQ "+document.getElementById("user_destination").value;
+      //   console.log(destination_name)
+      //   // Getting direction location     
+      //   var directionsRequest = {
+      //       origin: center,
+      //       destination: destination_name,
+      //       travelMode: 'WALKING',
+      //       unitSystem: google.maps.UnitSystem.METRIC
+      //   };
+      //   console.log(directionsRequest);
+      //   console.log("Try get destination coordenates");
+      //   console.log(directionsService);
+      //   console.log(directionsRequest);
+      //   var destination_info = directionsService.route(directionsRequest, function (response, status) {                  
+      //       console.log("Destination coor");
+      //       console.log(response);
+      //       console.log("lat: "+response.routes[0].bounds.ha.h+"; lng: "+response.routes[0].bounds.da.h);
+      //       console.log("lat: "+user_position.latitude+"; lng: "+user_position.longitude)
+      //       direction_coor = {lat: response.routes[0].bounds.ha.h, lng: response.routes[0].bounds.da.h};
+      //       var bearing_long = bearing(user_position.latitude,user_position.longitude,direction_coor.lat,direction_coor.lng);
+      //       console.log("Bearing:" + bearing_long);
+      //   });
+      // }
+
+      var bearing_long = bearing(-27.499249, 153.015685,-27.499231, 153.013284);
+      console.log("Bearing:" + bearing_long);
+            // FROM POSITION -27.499249, 153.015685
+            // -27.496759, 153.015443 A close point ~due NORTH of our position (expecting ~0 degrees || ~360degrees) -> GOT 355.07271217358686degrees
+            // -27.499167, 153.01837  A close point ~due EAST of our position (expecting ~90 degrees) -> GOT 88.02870290635485degrees
+            // -27.501092, 153.015806 A close point ~due SOUTH of our position (expecting ~180 degrees) -> GOT 176.66714019333358
+            // -27.499231, 153.013284 A close point ~due WEST of our position (expecting ~270 degrees) -> GOT 
+
+      // Starting map
       function initMap() {
+        directionsService = new google.maps.DirectionsService();
+        console.log("intance");
+        console.log(directionsService);
         map = new google.maps.Map(document.getElementById('map'), {
           center: center,
           zoom: 16,
           disableDefaultUI: true
         });
       }
+
+
 
       // Getting the user location
       if (navigator.geolocation) {
@@ -38,12 +98,9 @@
         console.log("Geolocation is not supported by this browser.");
       }
       
-      // Printing the user location
+      // Printing the user location and bearing
       function showPosition(position) {
-        console.log("Print location");
-        console.log("Latitude: " + position.coords.latitude + ";Longitude: " + position.coords.longitude);
-        var bearing_long = bearing(position.coords.latitude,position.coords.longitude,center.lat,center.lng);
-        console.log("Bearing:" + bearing_long);
+        user_position = {latitude: position.coords.latitude, longitude: position.coords.longitude};
       }
 
       // Calculating distance and bearing
@@ -72,7 +129,5 @@
         return (brng + 360) % 360;
       }
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD7aozE7zUESGNqfAj64cwwlYQZN8g1aIk&callback=initMap"
-    async defer></script>
   </body>
 </html>
