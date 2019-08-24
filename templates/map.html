@@ -19,12 +19,57 @@
     <div id="map"></div>
     <script>
       var map;
+      console.log("Initallized");
+      var center = {lat: -27.497561, lng: 153.013302};
+      // Drawing de location
       function initMap() {
         map = new google.maps.Map(document.getElementById('map'), {
-          center: {lat: -27.497561, lng: 153.013302},
+          center: center,
           zoom: 16,
           disableDefaultUI: true
         });
+      }
+
+      // Getting the user location
+      if (navigator.geolocation) {
+        console.log("Get my location");
+        navigator.geolocation.getCurrentPosition(showPosition);
+      } else {
+        console.log("Geolocation is not supported by this browser.");
+      }
+      
+      // Printing the user location
+      function showPosition(position) {
+        console.log("Print location");
+        console.log("Latitude: " + position.coords.latitude + ";Longitude: " + position.coords.longitude);
+        var bearing_long = bearing(position.coords.latitude,position.coords.longitude,center.lat,center.lng);
+        console.log("Bearing:" + bearing_long);
+      }
+
+      // Calculating distance and bearing
+
+      // Converts from degrees to radians.
+      function toRadians(degrees) {
+        return degrees * Math.PI / 180;
+      };
+       
+      // Converts from radians to degrees.
+      function toDegrees(radians) {
+        return radians * 180 / Math.PI;
+      }
+
+      function bearing(startLat, startLng, destLat, destLng){
+        startLat = toRadians(startLat);
+        startLng = toRadians(startLng);
+        destLat = toRadians(destLat);
+        destLng = toRadians(destLng);
+
+        y = Math.sin(destLng - startLng) * Math.cos(destLat);
+        x = Math.cos(startLat) * Math.sin(destLat) -
+              Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+        brng = Math.atan2(y, x);
+        brng = toDegrees(brng);
+        return (brng + 360) % 360;
       }
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD7aozE7zUESGNqfAj64cwwlYQZN8g1aIk&callback=initMap"
