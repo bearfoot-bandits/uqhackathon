@@ -3,6 +3,7 @@ from pymongo import MongoClient
 import cv2
 from matplotlib import pyplot as plt
 from bson.json_util import dumps
+import json
 
 app = Flask(__name__)
 app.debug = True
