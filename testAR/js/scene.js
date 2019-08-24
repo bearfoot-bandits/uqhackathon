@@ -112,7 +112,20 @@ function initialize()
 	// setup markerRoots
 	////////////////////////////////////////////////////////////
 
+	let geometry1	= new THREE.CubeGeometry(1,1,1);
+	let material1	= new THREE.MeshNormalMaterial({
+		transparent: true,
+		opacity: 0.5,
+		side: THREE.DoubleSide
+	}); 
+
+	mesh1 = new THREE.Mesh( geometry1, material1 );
+	mesh1.position.y = 0.5;
+	mesh1.position.z = 7;
+	scene.add( mesh1 );
+
 	// build markerControls
+	/*
 	markerRoot1 = new THREE.Group();
 	scene.add(markerRoot1);
 	let markerControls1 = new THREEx.ArMarkerControls(arToolkitContext, markerRoot1, {
@@ -130,6 +143,7 @@ function initialize()
 	mesh1.position.y = 0.5;
 	
 	markerRoot1.add( mesh1 );
+	*/
 }
 
 
