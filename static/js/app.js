@@ -28,14 +28,14 @@ $.targets({
 
   deviceorientation (e) {
     var alpha;
-    // Check for iOS property
     if (e.webkitCompassHeading) alpha = e.webkitCompassHeading;
-    // non iOS
-    else alpha = e.alpha;
+    else {
+      alpha = e.alpha;
+      alpha += 90
+      // if (!window.chrome) alpha += 270
+    }
     let { beta, gamma } = e;
     ar.state().rotationObservers.forEach(ofn => ofn({alpha, beta, gamma}))
-
-    // app.emit('debug', alpha)
   },
 
   app: {
@@ -230,6 +230,38 @@ app.distanceBearingFromLatLng = function (degLat1, degLon1, degLat2, degLon2) {
   return { distance: R * c, bearing: (toDegrees(Math.atan2(y, x)) + 360) % 360 };
 }
 
+function compassHeading( alpha, beta, gamma ) {
+  var degtorad = Math.PI / 180; // Degree-to-Radian conversion
+
+  var _x = beta  ? beta  * degtorad : 0; // beta value
+  var _y = gamma ? gamma * degtorad : 0; // gamma value
+  var _z = alpha ? alpha * degtorad : 0; // alpha value
+
+  var cX = Math.cos( _x );
+  var cY = Math.cos( _y );
+  var cZ = Math.cos( _z );
+  var sX = Math.sin( _x );
+  var sY = Math.sin( _y );
+  var sZ = Math.sin( _z );
+
+  // Calculate Vx and Vy components
+  var Vx = - cZ * sY - sZ * sX * cY;
+  var Vy = - sZ * sY + cZ * sX * cY;
+
+  // Calculate compass heading
+  var compassHeading = Math.atan( Vx / Vy );
+
+  // Convert compass heading to use whole unit circle
+  if( Vy < 0 ) {
+    compassHeading += Math.PI;
+  } else if( Vx < 0 ) {
+    compassHeading += 2 * Math.PI;
+  }
+
+  return compassHeading * ( 180 / Math.PI ); // Compass Heading (in degrees)
+
+}
+
 
 // AR
 var ar = new $.Machine({
@@ -237,7 +269,7 @@ var ar = new $.Machine({
   renderer: null,
   camera: null,
   scene: null,
-  geom: null,
+  geom: new THREE.BoxGeometry(1, 1, 1),
   material: null,
   object: null,
 
@@ -256,7 +288,6 @@ $.targets({
           height = window.innerHeight;
 
       this.scene = new THREE.Scene();
-      this.geom = new THREE.BoxGeometry(1, 1, 1);
       this.renderer = new THREE.WebGLRenderer({canvas: this.arCanvas, antialias: true, alpha: true});
       this.camera = new THREE.PerspectiveCamera(60, width / height, .01, 1000);
       ar.emit('resize');
@@ -271,7 +302,9 @@ $.targets({
       this.scene.add(pointLight);
 
       ar.emit('updateMaterial');
-      ar.emit('createObject')
+      //return ar.emitAsync('buildObject', 'model100').then(() => ar.emitAsync('createObject'))
+      ar.emitAsync('createObject')
+        .then(() => ar.emit('unpause'))
     },
 
     resize () {
@@ -298,21 +331,28 @@ $.targets({
         objnew.scale = object.scale;
         scene.remove(object)
       }
-      app.emit('debug', distance)
+      // app.emit('debug', distance)
       objnew.position.x = 5 * Math.cos(bearing);
       objnew.position.y = 5 * Math.sin(bearing);
       scene.add(objnew);
-      this.object = objnew;
-      ar.emit('unpause')
+      this.object = objnew
     },
 
     animate ({alpha, beta, gamma}, fromObs) {
       this.camera.rotation.y = alpha * Math.PI / 180;
       this.camera.rotation.x = beta * Math.PI / 180;
 
-			this.object.rotation.x += 0.02;
-			this.object.rotation.y += 0.0225;
-			this.object.rotation.z += 0.0175;
+      // function toRadians(degrees) {
+      //   return degrees * (Math.PI/180)
+      // }
+
+      // var quaternion = new THREE.Quaternion().setFromEuler(
+      //   new THREE.Euler(toRadians(beta), toRadians(alpha), 0));
+      // this.camera.setRotationFromQuaternion(quaternion);
+
+			this.object.rotation.x += 0.02 * .2;
+			this.object.rotation.y += 0.0225 * .2;
+			this.object.rotation.z += 0.0175 * .2;
 				// make the cube bounce
 			var dtime	= Date.now() - startTime;
 			this.object.scale.x	= 1 + 0.3*Math.sin(dtime/300);
@@ -331,6 +371,28 @@ $.targets({
       this.rotationObservers.push(({alpha, beta, gamma}) =>
         ar.emit('animate', {alpha, beta, gamma}, true))
       ar.emit('animate', {}, false)
+    },
+
+    buildObject (name) {
+      return fetch('/static/models/' + name).then(res => res.blob()).then(blob => {
+        console.log(blob)
+        var i, count, c, vert = new Float32Array(blob.arrayBuffer);
+        var V2a = new THREE.Vector2(0, 1), V2b = new THREE.Vector2(0, 1), V2c = new THREE.Vector2(1, 1);
+        while (i < count) {
+          this.geom.vertices.push(
+            new THREE.Vector3(vert[i], vert[i+1], vert[i+2]),
+            new THREE.Vector3(vert[i+3], vert[i+4], vert[i+5]),
+            new THREE.Vector3(vert[i+6], vert[i+7], vert[i+8])
+          );
+          this.geom.faces.push(new THREE.Face3(c, c+1, c+2));
+          this.geom.faceVertexUvs[0].push([V2a, V2b, V2c]);
+          i = i+9;
+          c = c+3;
+        }
+        this.geom.computeFaceNormals();
+        ar.emit('updateMaterial')
+        ar.emit("createObject")
+      })
     }
 
   }
