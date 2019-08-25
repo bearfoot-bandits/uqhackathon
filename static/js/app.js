@@ -31,11 +31,7 @@ $.targets({
     // Check for iOS property
     if (e.webkitCompassHeading) alpha = e.webkitCompassHeading;
     // non iOS
-    else {
-      alpha = e.alpha;
-      // Assume Android stock
-      if (!window.chrome) alpha = alpha - 270
-    }
+    else alpha = e.alpha;
     let { beta, gamma } = e;
     ar.state().rotationObservers.forEach(ofn => ofn({alpha, beta, gamma}))
 
@@ -85,11 +81,11 @@ $.targets({
       });
     },
 
-    setZoom (curLat, curLng) {
-      let {latitude, longitude} = this.destination,
+    setZoom () {
+      let { latitude } = this.destination,
           vmin = Math.min(document.body.clientHeight, document.body.clientWidth) / 2;
-      let dist = getDistanceFromLatLon(latitude, longitude, curLat, curLng);
-      this.map.setOptions({zoom: getZoomLevel(latitude, dist, vmin)});
+      let { distance } = app.distanceBearingFromLatLng();
+      this.map.setOptions({zoom: getZoomLevel(latitude, distance, vmin)});
     },
 
     showDest () {
@@ -117,10 +113,10 @@ $.targets({
         clearTimeout(this.iv)
     },
 
-    sendData (latitude, longitude) {
-      let body = new FormData(), update = { latitude, longitude };
+    sendData () {
+      let body = new FormData();
       body.append('timestamp', Date.now());
-      body.append('geo', JSON.stringify({ update }));
+      body.append('geo', JSON.stringify({ update: this.geo }));
       if (this.hasCamera && $('.feedback.active')[0].id === 'ar' && false) {
         let { width, height } = this.photoCanvas;
         this.photoContext.drawImage(this.video, 0, 0, width, height);
@@ -149,8 +145,8 @@ $.targets({
       this.geo = { latitude, longitude };
       let gGeo = new google.maps.LatLng(...Object.values(this.geo));
       this.map.setCenter(gGeo);
-      app.emit('setZoom', latitude, longitude);
-      app.emit('sendData', latitude, longitude)
+      app.emit('setZoom');
+      app.emit('sendData')
     },
 
 
@@ -158,7 +154,7 @@ $.targets({
     startCamera () {
       if (navigator.mediaDevices.getUserMedia) {
         return navigator.mediaDevices.getUserMedia({
-          video: { width: 4800, height: 6400/*, facingMode: { exact: 'environment' }*/ }
+          video: { width: 4800, height: 6400, facingMode: { exact: 'environment' } }
         }).then(s => {
           this.video.srcObject = s;
           this.video.onloadedmetadata = () => this.video.play();
@@ -199,26 +195,39 @@ function initMap () {
   });
 }
 
-function getZoomLevel (lat, dist, vmin) {
-  let raw = Math.log(vmin * 156543.03392 * Math.cos(lat * Math.PI / 180) / dist) / Math.LN2;
+function getZoomLevel (lat, distance, vmin) {
+  let raw = Math.log(vmin * 156543.03392 * Math.cos(lat * Math.PI / 180) / distance) / Math.LN2;
   return Math.max(Math.min(Math.floor(raw), 20), 1)
 }
 
-function getDistanceFromLatLon(lat1,lon1,lat2,lon2) {
-  function deg2rad(deg) {
-    return deg * (Math.PI/180)
+app.distanceBearingFromLatLng = function (degLat1, degLon1, degLat2, degLon2) {
+  if (arguments.length === 0) {
+    degLat1 = this.state().geo.latitude;
+    degLon1 = this.state().geo.longitude;
+    degLat2 = this.state().destination.latitude;
+    degLon2 = this.state().destination.longitude;
   }
-  var R = 6371000;
-  var dLat = deg2rad(lat2-lat1);
-  var dLon = deg2rad(lon2-lon1);
-  var a =
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon/2) * Math.sin(dLon/2)
-    ;
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  var d = R * c;
-  return d;
+  function toRadians(degrees) {
+    return degrees * (Math.PI/180)
+  }
+  function toDegrees(radians) {
+    return radians * 180 / Math.PI;
+  }
+  var R = 6371000,
+      lat1 = toRadians(degLat1),
+      lon1 = toRadians(degLon1),
+      lat2 = toRadians(degLat2),
+      lon2 = toRadians(degLon2),
+      dLat = lat2 - lat1,
+      dLon = lon2 - lon1,
+      a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1) * Math.cos(lat2) *
+        Math.sin(dLon/2) * Math.sin(dLon/2),
+      c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)),
+      y = Math.sin(dLon) * Math.cos(lat2),
+      x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return { distance: R * c, bearing: (toDegrees(Math.atan2(y, x)) + 360) % 360 };
 }
 
 
@@ -249,8 +258,7 @@ $.targets({
       this.scene = new THREE.Scene();
       this.geom = new THREE.BoxGeometry(1, 1, 1);
       this.renderer = new THREE.WebGLRenderer({canvas: this.arCanvas, antialias: true, alpha: true});
-      this.camera = new THREE.PerspectiveCamera(75, width / height, .01, 1000);
-      this.camera.position.z = Math.hypot(2, 2, 2);
+      this.camera = new THREE.PerspectiveCamera(60, width / height, .01, 1000);
       ar.emit('resize');
       this.scene.add(this.camera);
       this.renderer.domElement.id = "renderer";
@@ -281,20 +289,26 @@ $.targets({
 
     createObject () {
       let { geom, material, scene, object } = this,
-          objnew = new THREE.Mesh(geom, material);
+          objnew = new THREE.Mesh(geom, material),
+
+          { distance, bearing } = app.distanceBearingFromLatLng();
       objnew.rotation.set(0, 0, 0);
       if (object) {
         objnew.rotation = object.rotation;
         objnew.scale = object.scale;
         scene.remove(object)
       }
+      app.emit('debug', distance)
+      objnew.position.x = 5 * Math.cos(bearing);
+      objnew.position.y = 5 * Math.sin(bearing);
       scene.add(objnew);
       this.object = objnew;
       ar.emit('unpause')
     },
 
     animate ({alpha, beta, gamma}, fromObs) {
-
+      this.camera.rotation.y = alpha * Math.PI / 180;
+      this.camera.rotation.x = beta * Math.PI / 180;
 
 			this.object.rotation.x += 0.02;
 			this.object.rotation.y += 0.0225;
